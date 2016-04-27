@@ -9,13 +9,6 @@
 #import "PbApiBase.h"
 #import "AFNetworking.h"
 
-typedef enum : NSUInteger {
-    PbRequestMethodGet,
-    PbRequestMethodPost,
-    PbRequestMethodPut,
-    PbRequestMethodDelete,
-} PbRequestMethod;
-
 @interface PbApiBase ()
 
 @property (nonatomic, assign) PbRequestMethod method;
@@ -25,6 +18,10 @@ typedef enum : NSUInteger {
 @end
 
 @implementation PbApiBase
+
++ (id)requestWithParam:(NSDictionary*)param completion:(RequestBlock)completion {
+    return [[self alloc]initWithMethod:PbRequestMethodUnknown Param:param completion:completion];
+}
 
 + (id)getWithParam:(NSDictionary*)param completion:(RequestBlock)completion {
     return [[self alloc]initWithMethod:PbRequestMethodGet Param:param completion:completion];
@@ -91,7 +88,17 @@ typedef enum : NSUInteger {
             [url appendString:suffix];
         }
         
-        if (self.method == PbRequestMethodGet && self.param) {
+        PbRequestMethod method = self.method;
+        
+        if (method == PbRequestMethodUnknown) {
+            method = [self method];
+            
+            if (method == PbRequestMethodUnknown) {
+                method = PbRequestMethodGet;
+            }
+        }
+        
+        if (method == PbRequestMethodGet && self.param) {
             [url appendString:[self paramToUrlString:self.param]];
         }
         
@@ -123,28 +130,28 @@ typedef enum : NSUInteger {
         
         [self willRequestWithURLString:encodedUrl];
         
-        if (self.method == PbRequestMethodPost) {
+        if (method == PbRequestMethodPost) {
             [sessionManager POST:encodedUrl parameters:self.param progress:nil success:^(NSURLSessionDataTask *task, id responseObject) {
                 onSuccess(task, responseObject, nil);
             } failure:^(NSURLSessionDataTask *task, NSError *error) {
                 onFailed(task, nil, error);
             }];
         }
-        else if (self.method == PbRequestMethodGet) {
+        else if (method == PbRequestMethodGet) {
             [sessionManager GET:encodedUrl parameters:self.param progress:nil success:^(NSURLSessionDataTask *task, id responseObject) {
                 onSuccess(task, responseObject, nil);
             } failure:^(NSURLSessionDataTask *task, NSError *error) {
                 onFailed(task, nil, error);
             }];
         }
-        else if (self.method == PbRequestMethodDelete) {
+        else if (method == PbRequestMethodDelete) {
             [sessionManager DELETE:encodedUrl parameters:self.param success:^(NSURLSessionDataTask *task, id responseObject) {
                 onSuccess(task, responseObject, nil);
             } failure:^(NSURLSessionDataTask *task, NSError *error) {
                 onFailed(task, nil, error);
             }];
         }
-        else if (self.method == PbRequestMethodPut) {
+        else if (method == PbRequestMethodPut) {
             [sessionManager PUT:encodedUrl parameters:self.param success:^(NSURLSessionDataTask *task, id responseObject) {
                 onSuccess(task, responseObject, nil);
             } failure:^(NSURLSessionDataTask *task, NSError *error) {
@@ -165,6 +172,10 @@ typedef enum : NSUInteger {
 - (NSString*)name {
     [NSException raise:@"PbApi Error" format:@"Method 'name' not implemented"];
     return @"";
+}
+
+- (PbRequestMethod)method {
+    return PbRequestMethodGet;
 }
 
 - (NSString*)prefix {
