@@ -9,29 +9,44 @@
 #import "PbApiBase.h"
 #import "AFNetworking.h"
 
+typedef enum : NSUInteger {
+    PbRequestMethodGet,
+    PbRequestMethodPost,
+    PbRequestMethodPut,
+    PbRequestMethodDelete,
+} PbRequestMethod;
+
 @interface PbApiBase ()
 
-@property (nonatomic, strong) NSDictionary* params;
+@property (nonatomic, assign) PbRequestMethod method;
+@property (nonatomic, strong) NSDictionary* param;
+@property (nonatomic, copy) RequestBlock completion;
 
 @end
 
 @implementation PbApiBase
 
-+ (id)requestBlock:(RequestBlock)block {
-    return [[self alloc]initWithBlock:block];
++ (id)getWithParam:(NSDictionary*)param completion:(RequestBlock)completion {
+    return [[self alloc]initWithMethod:PbRequestMethodGet Param:param completion:completion];
 }
 
-+ (id)requestWithParam:(NSDictionary*)param {
-    return [[self alloc]initWithParam:param];
++ (id)postWithParam:(NSDictionary*)param completion:(RequestBlock)completion {
+    return [[self alloc]initWithMethod:PbRequestMethodPost Param:param completion:completion];
 }
 
-+ (id)requestWithParam:(NSDictionary*)param block:(RequestBlock)block {
-    return [[self alloc]initWithParam:param block:block];
++ (id)putWithParam:(NSDictionary*)param completion:(RequestBlock)completion {
+    return [[self alloc]initWithMethod:PbRequestMethodPut Param:param completion:completion];
 }
 
-- (id)initWithBlock:(RequestBlock)block {
++ (id)deleteWithParam:(NSDictionary*)param completion:(RequestBlock)completion {
+    return [[self alloc]initWithMethod:PbRequestMethodDelete Param:param completion:completion];
+}
+
+- (id)initWithMethod:(PbRequestMethod)method Param:(NSDictionary*)param completion:(RequestBlock)completion {
     if (self = [super init]) {
-        self.block = block;
+        self.method = method;
+        self.param = param;
+        self.completion = completion;
         
         [self start];
     }
@@ -39,46 +54,19 @@
     return self;
 }
 
-- (id)initWithParam:(NSDictionary*)param {
-    return [self initWithParam:param block:nil];
-}
-
-- (id)initWithParam:(NSDictionary*)param block:(RequestBlock)block {
-    self.params = param;
-    return [self initWithBlock:block];
-}
-
-- (NSString*) removeUrlPrefix:(NSString*)url {
-    while ([[url substringToIndex:1] isEqualToString:@"/"]) {
-        url = [url substringFromIndex:1];
-    }
-    
-    return url;
-}
-
-- (NSString*) removeUrlSuffix:(NSString*)url {
-    while ([[url substringFromIndex:url.length-1] isEqualToString:@"/"]) {
-        url = [url substringToIndex:url.length-1];
-    }
-    
-    return url;
-}
-
 - (id)start {
     dispatch_async(dispatch_get_main_queue(), ^{
         NSString* domain = [self domain];
-        NSString* prefix = [self prefixUrl];
-        NSString* suburl = [self subUrl];
+        NSString* name = [self name];
+        NSString* prefix = [self prefix];
+        NSString* suffix = [self suffix];
         
         domain = [self removeUrlSuffix:domain];
         
+        name = [self removeUrlPrefix:name];
+        
         prefix = [self removeUrlPrefix:prefix];
         prefix = [self removeUrlSuffix:prefix];
-        
-        suburl = [self removeUrlPrefix:suburl];
-        
-        PbRequestMethod method = [self method];
-        NSDictionary* param = [self param];
         
         AFHTTPSessionManager* sessionManager = [[AFHTTPSessionManager alloc] initWithSessionConfiguration:nil];
         sessionManager.requestSerializer = [AFJSONRequestSerializer serializer];
@@ -91,61 +79,73 @@
             [sessionManager.requestSerializer setValue:headerValue forHTTPHeaderField:headerKey];
         }
         
-        NSString* url = [NSString stringWithFormat:@"%@/%@/%@", domain, prefix, suburl];
-        if (method == PbRequestMethodGet && param) {
-            url = [url stringByAppendingString:[self paramToUrlString:param]];
+        NSMutableString* url = [NSMutableString stringWithString:domain];
+        
+        if (prefix && prefix.length) {
+            [url appendFormat:@"/%@", prefix];
         }
         
-        void(^checkResponse)(NSHTTPURLResponse*) = ^(NSHTTPURLResponse* response) {
-            NSInteger code = response.statusCode;
-            
-            // TODO: 检查请求结果
-        };
+        [url appendFormat:@"/%@", name];
+        
+        if (suffix && suffix.length) {
+            [url appendString:suffix];
+        }
+        
+        if (self.method == PbRequestMethodGet && self.param) {
+            [url appendString:[self paramToUrlString:self.param]];
+        }
         
         void(^onSuccess)(NSURLSessionDataTask*, NSDictionary*, NSError*) = ^(NSURLSessionDataTask* session, NSDictionary* result, NSError* error) {
             NSDictionary *dic = [self result:result];
-            if (self.block) {
-                self.block(dic, error);
-            }
             
-            checkResponse((NSHTTPURLResponse*)session.response);
+            [self didRequestSuccessWithResult:dic response:(NSHTTPURLResponse*)session.response];
+            
+            if (self.completion) {
+                self.completion(dic, error);
+            }
         };
         
         void(^onFailed)(NSURLSessionDataTask*, NSDictionary*, NSError*) = ^(NSURLSessionDataTask* response, NSDictionary* result, NSError* error) {
-            NSLog(@"*** Request Failed: %@", error.description);
+            [self didRequestFailureWithResponse:(NSHTTPURLResponse*)response.response error:error];
             
-            if (self.block) {
-                self.block(result, error);
+            if (self.completion) {
+                self.completion(result, error);
             }
-            
-            checkResponse((NSHTTPURLResponse*)response.response);
         };
         
-        url = [url stringByAddingPercentEscapesUsingEncoding:NSUTF8StringEncoding];
-
-        if (method == PbRequestMethodPost) {
-            [sessionManager POST:url parameters:param progress:nil success:^(NSURLSessionDataTask *task, id responseObject) {
+        NSString* encodedUrl;
+        if ([[[UIDevice currentDevice] systemVersion] floatValue] >= 7.0) {
+            encodedUrl = [url stringByAddingPercentEncodingWithAllowedCharacters:[NSCharacterSet URLQueryAllowedCharacterSet]];
+        }
+        else {
+            encodedUrl = [url stringByAddingPercentEscapesUsingEncoding:NSUTF8StringEncoding];
+        }
+        
+        [self willRequestWithURLString:encodedUrl];
+        
+        if (self.method == PbRequestMethodPost) {
+            [sessionManager POST:encodedUrl parameters:self.param progress:nil success:^(NSURLSessionDataTask *task, id responseObject) {
                 onSuccess(task, responseObject, nil);
             } failure:^(NSURLSessionDataTask *task, NSError *error) {
                 onFailed(task, nil, error);
             }];
         }
-        else if (method == PbRequestMethodGet) {
-            [sessionManager GET:url parameters:param progress:nil success:^(NSURLSessionDataTask *task, id responseObject) {
+        else if (self.method == PbRequestMethodGet) {
+            [sessionManager GET:encodedUrl parameters:self.param progress:nil success:^(NSURLSessionDataTask *task, id responseObject) {
                 onSuccess(task, responseObject, nil);
             } failure:^(NSURLSessionDataTask *task, NSError *error) {
                 onFailed(task, nil, error);
             }];
         }
-        else if (method == PbRequestMethodDelete) {
-            [sessionManager DELETE:url parameters:param success:^(NSURLSessionDataTask *task, id responseObject) {
+        else if (self.method == PbRequestMethodDelete) {
+            [sessionManager DELETE:encodedUrl parameters:self.param success:^(NSURLSessionDataTask *task, id responseObject) {
                 onSuccess(task, responseObject, nil);
             } failure:^(NSURLSessionDataTask *task, NSError *error) {
                 onFailed(task, nil, error);
             }];
         }
-        else if (method == PbRequestMethodPut) {
-            [sessionManager PUT:url parameters:param success:^(NSURLSessionDataTask *task, id responseObject) {
+        else if (self.method == PbRequestMethodPut) {
+            [sessionManager PUT:encodedUrl parameters:self.param success:^(NSURLSessionDataTask *task, id responseObject) {
                 onSuccess(task, responseObject, nil);
             } failure:^(NSURLSessionDataTask *task, NSError *error) {
                 onFailed(task, nil, error);
@@ -157,53 +157,87 @@
 }
 
 #pragma mark Method to be implementation
-- (NSString*) subUrl {
+- (NSString*)domain {
+    [NSException raise:@"PbApi Error" format:@"Method 'domain' not implemented"];
     return @"";
 }
 
-- (NSString*) prefixUrl {
+- (NSString*)name {
+    [NSException raise:@"PbApi Error" format:@"Method 'name' not implemented"];
     return @"";
 }
 
-- (NSString*) domain {
+- (NSString*)prefix {
     return @"";
 }
 
-- (PbRequestMethod) method {
-    return PbRequestMethodPost;
+- (NSString*)suffix {
+    return @"";
 }
 
-- (NSDictionary*) header {
+- (NSDictionary*)header {
     return nil;
 }
 
-- (NSDictionary*) param {
-    return self.params;
-}
-
-- (NSDictionary*) result:(NSDictionary*)json {
+- (NSDictionary*)result:(NSDictionary*)json {
     return json;
 }
 
+- (void)willRequestWithURLString:(NSString*)URLString {
+    
+}
+
+- (void)didRequestSuccessWithResult:(NSDictionary*)result response:(NSHTTPURLResponse*)response {
+    
+}
+
+- (void)didRequestFailureWithResponse:(NSHTTPURLResponse*)response error:(NSError*)error {
+    
+}
+
+#pragma mark - Utils
+- (NSString*)removeUrlPrefix:(NSString*)url {
+    if (!url || !url.length) {
+        return url;
+    }
+    
+    while ([[url substringToIndex:1] isEqualToString:@"/"]) {
+        url = [url substringFromIndex:1];
+    }
+    
+    return url;
+}
+
+- (NSString*)removeUrlSuffix:(NSString*)url {
+    if (!url || !url.length) {
+        return url;
+    }
+    
+    while ([[url substringFromIndex:url.length-1] isEqualToString:@"/"]) {
+        url = [url substringToIndex:url.length-1];
+    }
+    
+    return url;
+}
+
 - (NSString*)paramToUrlString:(NSDictionary*)param {
-    NSMutableString *sRet = [[NSMutableString alloc] init];
-    for (NSInteger i=0; i<[param count]; i++) {
-        NSString *sKey = [param.allKeys objectAtIndex:i];
-        NSString *sValue = param[sKey];
-        if ([sValue isKindOfClass:[NSNumber class]]) {
-            NSNumber *value = (NSNumber *)sValue;
-            sValue = [value stringValue];
+    NSMutableString *result = [[NSMutableString alloc] init];
+    for (NSInteger i = 0; i < param.count; i++) {
+        NSString *key = [param.allKeys objectAtIndex:i];
+        NSString *value = param[key];
+        if ([value isKindOfClass:[NSNumber class]]) {
+            value = [((NSNumber*)value)stringValue];
         }
-        if (i==0) {
-            [sRet appendString:@"?"];
+        if (i == 0) {
+            [result appendString:@"?"];
         }
         else {
-            [sRet appendString:@"&"];
+            [result appendString:@"&"];
         }
         
-        [sRet appendFormat:@"%@=%@", sKey, sValue];
+        [result appendFormat:@"%@=%@", key, value];
     }
-    return sRet;
+    return result;
 }
 
 @end

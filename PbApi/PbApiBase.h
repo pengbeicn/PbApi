@@ -8,49 +8,39 @@
 
 #import <Foundation/Foundation.h>
 
-
 typedef void (^RequestBlock)(NSDictionary* result, NSError* error);
-
-typedef enum : NSUInteger {
-    PbRequestMethodGet,
-    PbRequestMethodPost,
-    PbRequestMethodPut,
-    PbRequestMethodDelete,
-} PbRequestMethod;
 
 @interface PbApiBase : NSObject
 
-+ (id)requestBlock:(RequestBlock)block;
-+ (id)requestWithParam:(NSDictionary*)param;
-+ (id)requestWithParam:(NSDictionary*)param block:(RequestBlock)block;
-
-@property (nonatomic, copy) void(^block)(NSDictionary* result, NSError* error);
-
-- (id)initWithBlock:(RequestBlock)block;
-- (id)initWithParam:(NSDictionary*)param;
-- (id)initWithParam:(NSDictionary*)param block:(RequestBlock)block;
++ (id)getWithParam:(NSDictionary*)param completion:(RequestBlock)completion;
++ (id)postWithParam:(NSDictionary*)param completion:(RequestBlock)completion;
++ (id)putWithParam:(NSDictionary*)param completion:(RequestBlock)completion;
++ (id)deleteWithParam:(NSDictionary*)param completion:(RequestBlock)completion;
 
 #pragma mark 必须继承的方法
-// 子url
-- (NSString*) subUrl;
+// 域名，需要带http:// 或 https://
+- (NSString*)domain;
+
+// api名，如："user_info"，前后不需要带/
+- (NSString*)name;
 
 #pragma mark 按需继承的方法
-// url前缀，默认空
-- (NSString*) prefixUrl;
+// url前缀，如："api/v1"，默认为""
+- (NSString*)prefix;
 
-// 域名
-- (NSString*) domain;
-
-// 请求的方法，默认为POST
-- (PbRequestMethod) method;
+// url后缀，如：".json"，默认为""
+- (NSString*)suffix;
 
 // 请求的头，默认为nil
-- (NSDictionary*) header;
+- (NSDictionary*)header;
 
-// 参数，默认为nil
-- (NSDictionary*) param;
+// 将请求的json转换成自定义的格式，默认不转换
+- (NSDictionary*)result:(NSDictionary*)json;
 
-// 将json数据转换成需要的数据，默认不转换
-- (NSDictionary*) result:(NSDictionary*)json;
+#pragma mark - 回调事件
+- (void)willRequestWithURLString:(NSString*)URLString;
+
+- (void)didRequestSuccessWithResult:(NSDictionary*)result response:(NSHTTPURLResponse*)response;
+- (void)didRequestFailureWithResponse:(NSHTTPURLResponse*)response error:(NSError*)error;
 
 @end
