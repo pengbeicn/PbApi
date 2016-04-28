@@ -8,7 +8,7 @@
 
 Pod::Spec.new do |s|
   s.name             = "PbApi"
-  s.version          = "0.1.0"
+  s.version          = "0.0.1"
   s.summary          = "A simple way to request an API."
 
 # This description is used to generate tags and improve search results.
