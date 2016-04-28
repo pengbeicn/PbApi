@@ -105,7 +105,12 @@
         void(^onSuccess)(NSURLSessionDataTask*, NSDictionary*, NSError*) = ^(NSURLSessionDataTask* session, NSDictionary* result, NSError* error) {
             NSDictionary *dic = [self result:result];
             
-            [self didRequestSuccessWithResult:dic response:(NSHTTPURLResponse*)session.response];
+            if (error) {
+                [self didRequestFailureWithResponse:(NSHTTPURLResponse*)session.response error:error];
+            }
+            else {
+                [self didRequestSuccessWithResult:dic response:(NSHTTPURLResponse*)session.response];
+            }
             
             if (self.completion) {
                 self.completion(dic, error);
