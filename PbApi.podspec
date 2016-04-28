@@ -17,7 +17,7 @@ Pod::Spec.new do |s|
 #   * Write the description between the DESC delimiters below.
 #   * Finally, don't worry about the indent, CocoaPods strips it!  
   s.description      = <<-DESC
-
+A simple way to request an API.
                        DESC
 
   s.homepage         = "https://github.com/pengbeicn/PbApi"
@@ -30,9 +30,9 @@ Pod::Spec.new do |s|
   s.platform     = :ios, '7.0'
   s.requires_arc = true
 
-  s.source_files = 'Pod/Classes/**/*'
+  s.source_files = 'PbApi/**/*.{h,m}'
   s.resource_bundles = {
-    'PbApi' => ['Pod/Assets/*.png']
+    'PbApi' => ['Pod/*.png']
   }
 
   # s.public_header_files = 'Pod/Classes/**/*.h'
