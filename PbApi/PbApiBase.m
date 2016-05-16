@@ -136,14 +136,14 @@
         [self willRequestWithURLString:encodedUrl];
         
         if (method == PbRequestMethodPost) {
-            [sessionManager POST:encodedUrl parameters:self.param progress:nil success:^(NSURLSessionDataTask *task, id responseObject) {
+            [sessionManager POST:encodedUrl parameters:self.param success:^(NSURLSessionDataTask *task, id responseObject) {
                 onSuccess(task, responseObject, nil);
             } failure:^(NSURLSessionDataTask *task, NSError *error) {
                 onFailed(task, nil, error);
             }];
         }
         else if (method == PbRequestMethodGet) {
-            [sessionManager GET:encodedUrl parameters:self.param progress:nil success:^(NSURLSessionDataTask *task, id responseObject) {
+            [sessionManager GET:encodedUrl parameters:self.param success:^(NSURLSessionDataTask *task, id responseObject) {
                 onSuccess(task, responseObject, nil);
             } failure:^(NSURLSessionDataTask *task, NSError *error) {
                 onFailed(task, nil, error);
