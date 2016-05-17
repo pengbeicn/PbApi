@@ -61,6 +61,7 @@
         domain = [self removeUrlSuffix:domain];
         
         name = [self removeUrlPrefix:name];
+        name = [self removeUrlSuffix:name];
         
         prefix = [self removeUrlPrefix:prefix];
         prefix = [self removeUrlSuffix:prefix];
@@ -82,7 +83,7 @@
             [url appendFormat:@"/%@", prefix];
         }
         
-        [url appendFormat:@"/%@", name];
+        [url appendFormat:@"/%@/", name];
         
         if (suffix && suffix.length) {
             [url appendString:suffix];
